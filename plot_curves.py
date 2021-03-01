@@ -13,6 +13,8 @@ from scipy.optimize import minimize
 
 import matplotlib.pyplot as plt
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def sample_dosages(batch_size, num_treatments, num_dosages):
     dosage_samples = np.random.uniform(0., 1., size=[batch_size, num_treatments, num_dosages])

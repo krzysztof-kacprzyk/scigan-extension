@@ -22,6 +22,9 @@ class SCIGAN_Model:
         self.size_z = self.num_treatments * self.num_dosage_samples
         self.num_outcomes = self.num_treatments * self.num_dosage_samples
 
+        self.iterations_gan = params['iterations_gan']
+        self.iterations_inference = params['iterations_inference']
+
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
 
@@ -263,7 +266,7 @@ class SCIGAN_Model:
 
         # Iterations
         print("Training SCIGAN generator and discriminator.")
-        for it in tqdm(range(5000)):
+        for it in tqdm(range(self.iterations_gan)):
             for kk in range(2):
                 idx_mb = sample_X(Train_X, self.batch_size)
                 X_mb = Train_X[idx_mb, :]
@@ -356,7 +359,7 @@ class SCIGAN_Model:
 
         # Train Inference Network
         print("Training inference network.")
-        for it in tqdm(range(10000)):
+        for it in tqdm(range(self.iterations_inference)):
             idx_mb = sample_X(Train_X, self.batch_size)
             X_mb = Train_X[idx_mb, :]
             T_mb = np.reshape(Train_T[idx_mb], [self.batch_size, ])
