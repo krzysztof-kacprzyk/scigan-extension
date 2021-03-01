@@ -80,8 +80,11 @@ class SCIGAN_Model:
                              G_treatment_dosage_outcomes):
 
         with tf.variable_scope('dosage_discriminator', reuse=tf.AUTO_REUSE):
-            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_dim, activation=tf.nn.elu),
-                                                             axis=1)
+            # patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_dim, activation=tf.nn.elu),
+            #                                                  axis=1)
+
+            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_inv_eqv_dim, activation=tf.nn.elu),
+                                                            axis=1)
             D_dosage_outcomes = dict()
             for treatment in range(self.num_treatments):
                 treatment_mask = treatment_dosage_mask[:, treatment]
@@ -94,7 +97,7 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_h1 = tf.nn.elu(equivariant_layer(inputs, self.h_inv_eqv_dim, layer_id=1,
-                                                   treatment_id=treatment) + patient_features_representation)
+                                                   treatment_id=treatment) + patient_features_representation) # broadcasting
                 D_h2 = tf.nn.elu(equivariant_layer(D_h1, self.h_inv_eqv_dim, layer_id=2, treatment_id=treatment))
                 D_logits_treatment = tf.layers.dense(D_h2, 1, activation=None,
                                                      name='treatment_output_%s' % str(treatment))
