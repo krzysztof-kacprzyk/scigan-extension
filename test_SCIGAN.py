@@ -28,6 +28,7 @@ def init_arg():
     parser.add_argument("--h_inv_eqv_dim", default=64, type=int)
     parser.add_argument("--num_dosage_samples", default=5, type=int)
     parser.add_argument("--alpha", default=1.0, type=float)
+    parser.add_argument("--filepath", default="datasets/tcga.p")
 
     return parser.parse_args()
 
@@ -43,6 +44,7 @@ if __name__ == "__main__":
     dataset_params['save_dataset'] = args.save_dataset
     dataset_params['validation_fraction'] = args.validation_fraction
     dataset_params['test_fraction'] = args.test_fraction
+    dataset_params['filepath'] = args.filepath
 
     data_class = TCGA_Data(dataset_params)
     dataset = data_class.dataset

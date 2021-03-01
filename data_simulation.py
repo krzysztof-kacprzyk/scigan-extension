@@ -128,7 +128,9 @@ class TCGA_Data():
         self.validation_fraction = args['validation_fraction']
         self.test_fraction = args['test_fraction']
 
-        self.tcga_data = pickle.load(open('datasets/tcga.p', 'rb'))
+        self.filepath = args['filepath']
+
+        self.tcga_data = pickle.load(open(self.filepath, 'rb'))
         self.patients = self.normalize_data(self.tcga_data['rnaseq'])
 
         self.scaling_parameteter = 10
