@@ -85,7 +85,7 @@ if __name__ == "__main__":
     model_baseline.train(Train_X=dataset_train['x'], Train_T=dataset_train['t'], Train_D=dataset_train['d'],
                          Train_Y=dataset_train['y_normalized'], verbose=args.verbose)
 
-    mise, dpe, pe, mise_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
+    mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
                                          num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir)
 
     print("Mise: %s" % str(mise))
@@ -94,3 +94,6 @@ if __name__ == "__main__":
 
     for treatment_idx in mise_dict.keys():
         print(f"Mise for treatment {treatment_idx}: {mise_dict[treatment_idx]}")
+    
+    for treatment_idx in dpe_dict.keys():
+        print(f"DPE for treatment {treatment_idx}: {dpe_dict[treatment_idx]}")

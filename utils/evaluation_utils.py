@@ -51,6 +51,7 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
     true_best = []
 
     mises_treatments = defaultdict(list)
+    dpe_treatments = defaultdict(list)
 
     samples_power_of_two = 6
     num_integration_samples = 2 ** samples_power_of_two + 1
@@ -111,6 +112,7 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
 
                 dosage_policy_error = (max_true_y - max_pred_y) ** 2
                 dosage_policy_errors.append(dosage_policy_error)
+                dpe_treatments[treatment_idx].append(dosage_policy_error)
 
                 pred_best.append(max_pred_opt_y)
                 pred_vals.append(max_pred_y)
@@ -124,4 +126,5 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
             policy_errors.append(policy_error)
 
     return (np.sqrt(np.mean(mises)), np.sqrt(np.mean(dosage_policy_errors)), np.sqrt(np.mean(policy_errors)),
-    {treatment:np.sqrt(np.mean(mises_treatments[treatment])) for treatment in mises_treatments.keys()})
+    {treatment:np.sqrt(np.mean(mises_treatments[treatment])) for treatment in mises_treatments.keys()},
+    {treatment:np.sqrt(np.mean(dpe_treatments[treatment])) for treatment in dpe_treatments.keys()})
