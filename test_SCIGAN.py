@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import tensorflow as tf
+import pickle
 
 from data_simulation import get_dataset_splits, TCGA_Data
 from SCIGAN import SCIGAN_Model
@@ -29,6 +30,8 @@ def init_arg():
     parser.add_argument("--num_dosage_samples", default=5, type=int)
     parser.add_argument("--alpha", default=1.0, type=float)
     parser.add_argument("--filepath", default="datasets/tcga.p")
+    parser.add_argument("--ds_output", default="datasets/generated")
+    parser.add_argument("--model_output", default="saved_models")
 
     return parser.parse_args()
 
@@ -50,7 +53,22 @@ if __name__ == "__main__":
     dataset = data_class.dataset
     dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
 
-    export_dir = 'saved_models/' + args.model_name
+    if args.save_dataset:
+
+        with open(os.path.join(args.ds_output,'full_dataset.pickle'), 'wb') as f:
+            pickle.dump(dataset, f)
+        
+        with open(os.path.join(args.ds_output,'train_dataset.pickle'), 'wb') as f:
+            pickle.dump(dataset_train, f)
+        
+        with open(os.path.join(args.ds_output,'val_dataset.pickle'), 'wb') as f:
+            pickle.dump(dataset_val, f)
+
+        with open(os.path.join(args.ds_output,'test_dataset.pickle'), 'wb') as f:
+            pickle.dump(dataset_test, f)
+
+
+    export_dir = os.path.join(args.model_output,args.model_name)
     if os.path.exists(export_dir):
         shutil.rmtree(export_dir)
 
