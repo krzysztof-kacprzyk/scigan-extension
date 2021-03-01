@@ -7,6 +7,8 @@ import tensorflow as tf
 from data_simulation import get_patient_outcome
 from scipy.optimize import minimize
 
+from collections import defaultdict
+
 
 def sample_dosages(batch_size, num_treatments, num_dosages):
     dosage_samples = np.random.uniform(0., 1., size=[batch_size, num_treatments, num_dosages])
@@ -48,6 +50,8 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
     pred_vals = []
     true_best = []
 
+    mises_treatments = defaultdict(list)
+
     samples_power_of_two = 6
     num_integration_samples = 2 ** samples_power_of_two + 1
     step_size = 1. / num_integration_samples
@@ -74,6 +78,7 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
 
                 mise = romb(np.square(true_outcomes - pred_dose_response), dx=step_size)
                 mises.append(mise)
+                mises_treatments[treatment_idx].append(mise)
 
                 best_encountered_x = treatment_strengths[np.argmax(pred_dose_response)]
 
@@ -118,4 +123,5 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
             policy_error = (optimal_val - selected_val) ** 2
             policy_errors.append(policy_error)
 
-    return np.sqrt(np.mean(mises)), np.sqrt(np.mean(dosage_policy_errors)), np.sqrt(np.mean(policy_errors))
+    return (np.sqrt(np.mean(mises)), np.sqrt(np.mean(dosage_policy_errors)), np.sqrt(np.mean(policy_errors)),
+    {treatment:np.sqrt(np.mean(mises_treatments[treatment])) for treatment in mises_treatments.keys()})
