@@ -8,6 +8,7 @@ import pickle
 
 from data_simulation import get_dataset_splits, TCGA_Data
 from SCIGAN import SCIGAN_Model
+from SCIGAN_deep import SCIGAN_deep_Model
 from utils.evaluation_utils import compute_eval_metrics
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -34,6 +35,8 @@ def init_arg():
     parser.add_argument("--model_output", default="saved_models")
     parser.add_argument("--iterations_gan", default=5000, type=int)
     parser.add_argument("--iterations_inference", default=10000, type=int)
+    parser.add_argument("--deep", action="store_true")
+
 
     return parser.parse_args()
 
@@ -79,8 +82,10 @@ if __name__ == "__main__":
               'alpha': args.alpha, 'batch_size': args.batch_size, 'h_dim': args.h_dim,
               'h_inv_eqv_dim': args.h_inv_eqv_dim, 'iterations_gan':args.iterations_gan,
               'iterations_inference':args.iterations_inference}
-
-    model_baseline = SCIGAN_Model(params)
+    if args.deep:
+        model_baseline = SCIGAN_deep_Model(params)
+    else:
+        model_baseline = SCIGAN_Model(params)
 
     model_baseline.train(Train_X=dataset_train['x'], Train_T=dataset_train['t'], Train_D=dataset_train['d'],
                          Train_Y=dataset_train['y_normalized'], verbose=args.verbose)

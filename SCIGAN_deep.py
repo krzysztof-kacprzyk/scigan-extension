@@ -7,7 +7,7 @@ from tqdm import tqdm
 from utils.model_utils import equivariant_layer, invariant_layer, sample_dosages, sample_X, sample_Z
 
 
-class SCIGAN_Model:
+class SCIGAN_deep_Model:
     def __init__(self, params):
         self.num_features = params['num_features']
         self.num_treatments = params['num_treatments']
@@ -65,8 +65,14 @@ class SCIGAN_Model:
 
                 treatment_layer_2 = tf.layers.dense(treatment_layer_1, self.h_dim, activation=tf.nn.elu,
                                                     name='treatment_layer_2_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+                
+                treatment_layer_3 = tf.layers.dense(treatment_layer_2, self.h_dim, activation=tf.nn.elu,
+                                                    name='treatment_layer_3_%s' % str(treatment), reuse=tf.AUTO_REUSE)
 
-                treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
+                treatment_layer_4 = tf.layers.dense(treatment_layer_3, self.h_dim, activation=tf.nn.elu,
+                                                    name='treatment_layer_4_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+
+                treatment_dosage_output = tf.layers.dense(treatment_layer_4, 1, activation=None,
                                                           name='treatment_output_%s' % str(treatment),
                                                           reuse=tf.AUTO_REUSE)
 
@@ -168,7 +174,14 @@ class SCIGAN_Model:
                                                         name='treatment_layer_2_%s' % str(treatment),
                                                         reuse=tf.AUTO_REUSE)
 
-                    treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
+                    treatment_layer_3 = tf.layers.dense(treatment_layer_2, self.h_dim, activation=tf.nn.elu,
+                                                        name='treatment_layer_3_%s' % str(treatment),
+                                                        reuse=tf.AUTO_REUSE)
+                    treatment_layer_4 = tf.layers.dense(treatment_layer_3, self.h_dim, activation=tf.nn.elu,
+                                                        name='treatment_layer_4_%s' % str(treatment),
+                                                        reuse=tf.AUTO_REUSE)
+
+                    treatment_dosage_output = tf.layers.dense(treatment_layer_4, 1, activation=None,
                                                               name='treatment_output_%s' % str(treatment),
                                                               reuse=tf.AUTO_REUSE)
 
