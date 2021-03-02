@@ -38,6 +38,7 @@ def init_arg():
     parser.add_argument("--deep", action="store_true")
     parser.add_argument("--v", default=1, type=int)
     parser.add_argument("--agg", choices=['sum', 'l1', 'l2', 'inf'], default='sum')
+    parser.add_argument("--use_gan", action='store_true')
 
 
     return parser.parse_args()
@@ -101,7 +102,8 @@ if __name__ == "__main__":
                          Train_Y=dataset_train['y_normalized'], verbose=args.verbose)
 
     mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
-                                         num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir)
+                                         num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir, use_gan=args.use_gan,
+                                         test_t=dataset_test['t'], test_d=dataset_test['d'], test_y=dataset_test['y_normalized'])
 
     print("Mise: %s" % str(mise))
     print("DPE: %s" % str(dpe))
