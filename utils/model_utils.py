@@ -12,6 +12,9 @@ def equivariant_layer(x, h_dim, layer_id, treatment_id, agg='sum'):
         xm = tf.norm(x, axis=1, keepdims=True, ord=1)
     elif agg == 'l2':
         xm = tf.norm(x, axis=1, keepdims=True, ord=2)
+    elif agg == 'inf':
+        xm = tf.norm(x, axis=1, keepdims=True, ord=np.inf)
+
 
     l_gamma = tf.layers.dense(x, h_dim, activation=None,
                               name='eqv_%s_treatment_%s_gamma' % (str(layer_id), str(treatment_id)),
@@ -33,6 +36,8 @@ def invariant_layer(x, h_dim, treatment_id, agg='sum'):
         rep_sum = tf.norm(rep_layer_1, axis=1, ord=1)
     elif agg == 'l2':
         rep_sum = tf.norm(rep_layer_1, axis=1, ord=2)
+    elif agg == 'inf':
+        rep_sum = tf.norm(rep_layer_1, axis=1, ord=np.inf)
 
     return rep_sum
 

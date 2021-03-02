@@ -37,7 +37,7 @@ def init_arg():
     parser.add_argument("--iterations_inference", default=10000, type=int)
     parser.add_argument("--deep", action="store_true")
     parser.add_argument("--v", default=1, type=int)
-    parser.add_argument("--agg", choices=['sum', 'l1', 'l2'], default='sum')
+    parser.add_argument("--agg", choices=['sum', 'l1', 'l2', 'inf'], default='sum')
 
 
     return parser.parse_args()
