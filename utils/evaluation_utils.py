@@ -28,7 +28,9 @@ def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data, u
 
     if use_gan:
 
-        noise =  np.repeat(np.expand_dims(np.random.uniform(0, 1., size=num_treatments * num_dosage_samples), axis=0), batch_size, axis=0)
+        noise_el = np.random.uniform(0., 1.)
+
+        noise = np.tile(noise_el, [batch_size, num_treatments * num_dosage_samples])
 
         one_hot_treatment = np.zeros(shape=[batch_size, num_treatments])
 
