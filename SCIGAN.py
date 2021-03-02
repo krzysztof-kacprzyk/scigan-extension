@@ -25,6 +25,8 @@ class SCIGAN_Model:
         self.iterations_gan = params['iterations_gan']
         self.iterations_inference = params['iterations_inference']
 
+        self.agg = params['agg']
+
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
 
@@ -100,8 +102,9 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_h1 = tf.nn.elu(equivariant_layer(inputs, self.h_inv_eqv_dim, layer_id=1,
-                                                   treatment_id=treatment) + patient_features_representation) # broadcasting
-                D_h2 = tf.nn.elu(equivariant_layer(D_h1, self.h_inv_eqv_dim, layer_id=2, treatment_id=treatment))
+                                                   treatment_id=treatment, agg=self.agg) + patient_features_representation) # broadcasting
+                D_h2 = tf.nn.elu(equivariant_layer(D_h1, self.h_inv_eqv_dim, layer_id=2,
+                                                    treatment_id=treatment, agg=self.agg))
                 D_logits_treatment = tf.layers.dense(D_h2, 1, activation=None,
                                                      name='treatment_output_%s' % str(treatment))
 
@@ -128,7 +131,8 @@ class SCIGAN_Model:
                 dosage_potential_outcomes = tf.expand_dims(G_treatment_dosage_outcomes[treatment], axis=-1)
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
-                D_treatment_rep = invariant_layer(x=inputs, h_dim=self.h_inv_eqv_dim, treatment_id=treatment)
+                D_treatment_rep = invariant_layer(x=inputs, h_dim=self.h_inv_eqv_dim,
+                                                    treatment_id=treatment, agg=self.agg)
 
                 D_treatment_outcomes[treatment] = D_treatment_rep
 

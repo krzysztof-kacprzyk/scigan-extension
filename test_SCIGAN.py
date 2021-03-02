@@ -37,6 +37,7 @@ def init_arg():
     parser.add_argument("--iterations_inference", default=10000, type=int)
     parser.add_argument("--deep", action="store_true")
     parser.add_argument("--v", default=1, type=int)
+    parser.add_argument("--agg", choices=['sum', 'l1', 'l2'], default='sum')
 
 
     return parser.parse_args()
@@ -82,7 +83,7 @@ if __name__ == "__main__":
               'num_dosage_samples': args.num_dosage_samples, 'export_dir': export_dir,
               'alpha': args.alpha, 'batch_size': args.batch_size, 'h_dim': args.h_dim,
               'h_inv_eqv_dim': args.h_inv_eqv_dim, 'iterations_gan':args.iterations_gan,
-              'iterations_inference':args.iterations_inference}
+              'iterations_inference':args.iterations_inference, 'agg':args.agg}
     if args.deep:
         if args.v == 1:
             model_baseline = SCIGAN_deep_Model(params)

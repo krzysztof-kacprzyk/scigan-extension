@@ -4,8 +4,14 @@ import numpy as np
 import tensorflow as tf
 
 
-def equivariant_layer(x, h_dim, layer_id, treatment_id):
-    xm = tf.reduce_sum(x, axis=1, keepdims=True)
+def equivariant_layer(x, h_dim, layer_id, treatment_id, agg='sum'):
+
+    if agg == 'sum':
+        xm = tf.reduce_sum(x, axis=1, keepdims=True)
+    elif agg == 'l1':
+        xm = tf.norm(x, axis=1, keepdims=True, ord=1)
+    elif agg == 'l2':
+        xm = tf.norm(x, axis=1, keepdims=True, ord=2)
 
     l_gamma = tf.layers.dense(x, h_dim, activation=None,
                               name='eqv_%s_treatment_%s_gamma' % (str(layer_id), str(treatment_id)),
@@ -17,11 +23,16 @@ def equivariant_layer(x, h_dim, layer_id, treatment_id):
     return out
 
 
-def invariant_layer(x, h_dim, treatment_id):
+def invariant_layer(x, h_dim, treatment_id, agg='sum'):
     rep_layer_1 = tf.layers.dense(x, h_dim, activation=tf.nn.elu,
                                   name='inv_treatment_%s' % str(treatment_id),
                                   reuse=tf.AUTO_REUSE)
-    rep_sum = tf.reduce_sum(rep_layer_1, axis=1)
+    if agg == 'sum':
+        rep_sum = tf.reduce_sum(rep_layer_1, axis=1)
+    elif agg == 'l1':
+        rep_sum = tf.norm(rep_layer_1, axis=1, ord=1)
+    elif agg == 'l2':
+        rep_sum = tf.norm(rep_layer_1, axis=1, ord=2)
 
     return rep_sum
 
