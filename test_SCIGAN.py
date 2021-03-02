@@ -8,7 +8,7 @@ import pickle
 
 from data_simulation import get_dataset_splits, TCGA_Data
 from SCIGAN import SCIGAN_Model
-from SCIGAN_deep import SCIGAN_deep_Model, SCIGAN_deep_2_Model, SCIGAN_deep_3_Model
+from SCIGAN_deep import SCIGAN_deep_Model, SCIGAN_deep_2_Model, SCIGAN_deep_3_Model, SCIGAN_deep_4_Model
 from utils.evaluation_utils import compute_eval_metrics
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -90,6 +90,9 @@ if __name__ == "__main__":
             model_baseline = SCIGAN_deep_2_Model(params)
         elif args.v == 3:
             model_baseline = SCIGAN_deep_3_Model(params)
+        elif args.v == 4:
+            model_baseline = SCIGAN_deep_4_Model(params)
+
     else:
         model_baseline = SCIGAN_Model(params)
 
