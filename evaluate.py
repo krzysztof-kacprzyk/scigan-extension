@@ -11,6 +11,7 @@ def init_arg():
     parser.add_argument("--models_folder", default="saved_models")
     parser.add_argument("--model_name", default="scigan_test")
     parser.add_argument("--use_gan", action='store_true')
+    parser.add_argument("--ds_type", choices=['train','val','test'], default='test')
 
     return parser.parse_args()
 
@@ -30,9 +31,16 @@ if __name__ == "__main__":
 
     model_dir = os.path.join(args.models_folder,args.model_name)
 
-    mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=args.num_treatments,
+    if args.ds_type == 'train':
+        chosen_ds = dataset_train
+    elif args.ds_type == 'val':
+        chosen_ds = dataset_val
+    else:
+        chosen_ds = dataset_test
+
+    mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, chosen_ds['x'], num_treatments=args.num_treatments,
                                          num_dosage_samples=args.num_dosage_samples, model_folder=model_dir, use_gan=args.use_gan,
-                                         test_t=dataset_test['t'], test_d=dataset_test['d'], test_y=dataset_test['y_normalized'])
+                                         test_t=chosen_ds['t'], test_d=chosen_ds['d'], test_y=chosen_ds['y_normalized'])
 
     print("Mise: %s" % str(mise))
     print("DPE: %s" % str(dpe))
