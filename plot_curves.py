@@ -160,6 +160,38 @@ class DoseCurvePlotter:
 
         plt.show()
 
+    def plot_sample_dose_curves(self, discretization_power=6):
+
+        num_integration_samples = 2 ** discretization_power + 1
+        step_size = 1. / num_integration_samples
+        treatment_strengths = np.linspace(np.finfo(float).eps, 1, num_integration_samples)
+
+        nrows = self.num_treatments
+        ncols = 6
+
+        tenth_num_patients = self.get_num_of_test_patients() // 10
+
+        patient_idx_list = [i * tenth_num_patients for i in range(ncols)]
+
+        fig, axs = plt.subplots(nrows, ncols, figsize=(16,8), dpi=200)
+
+        for row in range(nrows):
+            for col in range(ncols):
+
+                patient_idx = patient_idx_list[col]
+                treatment_idx = row
+
+                true_dose_response = self.get_true_dose_response_curve(patient_idx, treatment_idx, discrete=True,
+                                                                discretization_power=discretization_power)
+                pred_dose_response = self.get_pred_dose_response_curve(patient_idx, treatment_idx, discrete=True,
+                                                                discretization_power=discretization_power)                                        
+
+                axs[row, col].plot(treatment_strengths, true_dose_response, label='True')
+                axs[row, col].plot(treatment_strengths, pred_dose_response, label='Predicted')
+                axs[row, col].set_title(f"Treatment: {treatment_idx}")
+
+        plt.show()
+
     
 
 def init_arg():
@@ -191,7 +223,7 @@ if __name__ == "__main__":
     plotter = DoseCurvePlotter(dataset, dataset_test['x'], num_treatments=args.num_treatments,
                                          num_dosage_samples=args.num_dosage_samples, model_folder=model_dir)
     
-    plotter.plot_random_dose_curves(5,5)
+    plotter.plot_sample_dose_curves()
 
 
 
