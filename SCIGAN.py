@@ -264,6 +264,8 @@ class SCIGAN_Model:
         self.sess.run(tf.global_variables_initializer())
         self.sess.run(tf.local_variables_initializer())
 
+        print(f"Number of trainable parameters: {np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])}")
+
         # Iterations
         print("Training SCIGAN generator and discriminator.")
         for it in tqdm(range(self.iterations_gan)):
