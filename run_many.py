@@ -23,7 +23,7 @@ def init_arg():
     parser.add_argument("--validation_fraction", default=0.1, type=float)
     parser.add_argument("--test_fraction", default=0.2, type=float)
     parser.add_argument("--model_name", default="scigan_test")
-    parser.add_argument("--verbose", default=False)
+    parser.add_argument("--verbose", action='store_true')
     parser.add_argument("--batch_size", default=128, type=int)
     parser.add_argument("--h_dim", default=64, type=int)
     parser.add_argument("--h_inv_eqv_dim", default=64, type=int)
