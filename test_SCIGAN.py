@@ -40,6 +40,7 @@ def init_arg():
     parser.add_argument("--agg", choices=['sum', 'l1', 'l2', 'inf'], default='sum')
     parser.add_argument("--use_gan", action='store_true')
     parser.add_argument("--modify_i_loss", type=int, default=0)
+    parser.add_argument("--modify_g_loss", type=int, default=0)
 
 
     return parser.parse_args()
@@ -85,7 +86,8 @@ if __name__ == "__main__":
               'num_dosage_samples': args.num_dosage_samples, 'export_dir': export_dir,
               'alpha': args.alpha, 'batch_size': args.batch_size, 'h_dim': args.h_dim,
               'h_inv_eqv_dim': args.h_inv_eqv_dim, 'iterations_gan':args.iterations_gan,
-              'iterations_inference':args.iterations_inference, 'agg':args.agg, 'modify_i_loss':args.modify_i_loss}
+              'iterations_inference':args.iterations_inference, 'agg':args.agg, 'modify_i_loss':args.modify_i_loss,
+              'modify_g_loss':args.modify_g_loss}
     if args.deep:
         if args.v == 1:
             model_baseline = SCIGAN_deep_Model(params)

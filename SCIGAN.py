@@ -27,6 +27,7 @@ class SCIGAN_Model:
 
         self.agg = params['agg']
         self.modify_i_loss = params['modify_i_loss']
+        self.modify_g_loss = params['modify_g_loss']
 
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
@@ -237,7 +238,11 @@ class SCIGAN_Model:
         G_loss_GAN = -D_combined_loss
         G_logit_factual = tf.expand_dims(tf.reduce_sum(self.Treatment_Dosage_Mask * G_logits, axis=[1, 2]), axis=-1)
         G_loss_R = tf.reduce_mean((self.Y - G_logit_factual) ** 2)
-        G_loss = self.alpha * tf.sqrt(G_loss_R) + G_loss_GAN
+
+        if self.modify_g_loss == 0:
+            G_loss = self.alpha * tf.sqrt(G_loss_R) + G_loss_GAN
+        elif self.modify_g_loss == 1:
+            G_loss = self.alpha * G_loss_R + G_loss_GAN
 
         # 4. Inference loss
         I_logit_factual = tf.expand_dims(tf.reduce_sum(self.Treatment_Dosage_Mask * I_logits, axis=[1, 2]), axis=-1)
@@ -249,6 +254,8 @@ class SCIGAN_Model:
             I_loss = tf.sqrt(I_loss1 + I_loss2)
         elif self.modify_i_loss == 2:
             I_loss = tf.sqrt(I_loss2)
+        elif self.modify_i_loss == 3:
+            I_loss = I_loss1 + I_loss2
 
         theta_G = tf.trainable_variables(scope='generator')
         theta_D_dosage = tf.trainable_variables(scope='dosage_discriminator')
@@ -355,8 +362,8 @@ class SCIGAN_Model:
 
             # %% Debugging
             if it % 1000 == 0 and verbose:
-                D_treatment_loss_curr, D_dosage_loss_curr, G_loss_curr, = self.sess.run(
-                    [D_treatment_loss, D_dosage_loss, G_loss],
+                D_treatment_loss_curr, D_dosage_loss_curr, G_loss_curr, G_loss_GAN_curr, G_loss_R_curr = self.sess.run(
+                    [D_treatment_loss, D_dosage_loss, G_loss, G_loss_GAN, G_loss_R],
                     feed_dict={self.X: X_mb, self.T: treatment_one_hot,
                                self.D: D_mb[:, np.newaxis],
                                self.Treatment_Dosage_Samples: treatment_dosage_samples,
@@ -367,6 +374,8 @@ class SCIGAN_Model:
                 print('D_loss_treatments: {:.4}'.format((D_treatment_loss_curr)))
                 print('D_loss_dosages: {:.4}'.format((D_dosage_loss_curr)))
                 print('G_loss: {:.4}'.format((G_loss_curr)))
+                print('G_loss_GAN: {:.4}'.format((G_loss_GAN_curr)))
+                print('G_loss_R: {:.4}'.format((G_loss_R_curr)))
                 print()
 
         # Train Inference Network
@@ -400,8 +409,8 @@ class SCIGAN_Model:
             if it % 1000 == 0 and verbose:
                 print('Iter: {}'.format(it))
                 print('I_loss: {:.4}'.format((I_loss_curr)))
-                print('I_loss1: {:.4}'.format((np.sqrt(I_loss_curr_1))))
-                print('I_loss2: {:.4}'.format((np.sqrt(I_loss_curr_2))))
+                print('I_loss1: {:.4}'.format((I_loss_curr_1)))
+                print('I_loss2: {:.4}'.format((I_loss_curr_2)))
                 print()
 
         tf.compat.v1.saved_model.simple_save(self.sess, export_dir=self.export_dir,
