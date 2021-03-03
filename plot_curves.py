@@ -313,7 +313,7 @@ if __name__ == "__main__":
         chosen_ds = dataset_test
 
 
-    plotter = DoseCurvePlotter(dataset, dataset_test['x'], num_treatments=args.num_treatments,
+    plotter = DoseCurvePlotter(dataset, chosen_ds['x'], num_treatments=args.num_treatments,
                                          num_dosage_samples=args.num_dosage_samples, model_folder=model_dir,
                                          fig_size=(args.fig_size_w, args.fig_size_h), fig_dpi=args.fig_dpi,
                                          use_gan=args.use_gan,
