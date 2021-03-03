@@ -26,6 +26,7 @@ class SCIGAN_Model:
         self.iterations_inference = params['iterations_inference']
 
         self.agg = params['agg']
+        self.modify_i_loss = params['modify_i_loss']
 
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
@@ -242,7 +243,12 @@ class SCIGAN_Model:
         I_logit_factual = tf.expand_dims(tf.reduce_sum(self.Treatment_Dosage_Mask * I_logits, axis=[1, 2]), axis=-1)
         I_loss1 = tf.reduce_mean((G_logits - I_logits) ** 2)
         I_loss2 = tf.reduce_mean((self.Y - I_logit_factual) ** 2)
-        I_loss = tf.sqrt(I_loss1) + tf.sqrt(I_loss2)
+        if self.modify_i_loss == 0:
+            I_loss = tf.sqrt(I_loss1) + tf.sqrt(I_loss2)
+        elif self.modify_i_loss == 1:
+            I_loss = tf.sqrt(I_loss1 + I_loss2)
+        elif self.modify_i_loss == 2:
+            I_loss = tf.sqrt(I_loss2)
 
         theta_G = tf.trainable_variables(scope='generator')
         theta_D_dosage = tf.trainable_variables(scope='dosage_discriminator')
