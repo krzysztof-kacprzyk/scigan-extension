@@ -29,8 +29,15 @@ class SCIGAN_Model:
         self.modify_i_loss = params['modify_i_loss']
         self.modify_g_loss = params['modify_g_loss']
 
+        self.xavier = params['xavier']
+
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
+
+        if self.xavier:
+            self.initializer = tf.contrib.layers.xavier_initializer(uniform=False)
+        else:
+            self.initializer = None
 
         # Feature (X)
         self.X = tf.placeholder(tf.float32, shape=[None, self.num_features], name='input_features')
@@ -54,7 +61,7 @@ class SCIGAN_Model:
     def generator(self, x, y, t, d, z, treatment_dosage_samples):
         with tf.variable_scope('generator', reuse=tf.AUTO_REUSE):
             inputs = tf.concat(axis=1, values=[x, y, t, d, z])
-            G_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared')
+            G_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared', kernel_initializer=self.initializer)
             G_treatment_dosage_outcomes = dict()
 
             for treatment in range(self.num_treatments):
@@ -65,14 +72,16 @@ class SCIGAN_Model:
                 input_counterfactual_dosage = tf.concat(axis=1, values=[G_shared_expand, treatment_dosages])
 
                 treatment_layer_1 = tf.layers.dense(input_counterfactual_dosage, self.h_dim, activation=tf.nn.elu,
-                                                    name='treatment_layer_1_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+                                                    name='treatment_layer_1_%s' % str(treatment), reuse=tf.AUTO_REUSE,
+                                                    kernel_initializer=self.initializer)
 
                 treatment_layer_2 = tf.layers.dense(treatment_layer_1, self.h_dim, activation=tf.nn.elu,
-                                                    name='treatment_layer_2_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+                                                    name='treatment_layer_2_%s' % str(treatment), reuse=tf.AUTO_REUSE,
+                                                    kernel_initializer=self.initializer)
 
                 treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
                                                           name='treatment_output_%s' % str(treatment),
-                                                          reuse=tf.AUTO_REUSE)
+                                                          reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                 dosage_counterfactuals = tf.reshape(treatment_dosage_output, shape=(-1, self.num_dosage_samples))
 
@@ -90,7 +99,7 @@ class SCIGAN_Model:
             # patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_dim, activation=tf.nn.elu),
             #                                                  axis=1)
 
-            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_inv_eqv_dim, activation=tf.nn.elu),
+            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_inv_eqv_dim, activation=tf.nn.elu, kernel_initializer=self.initializer),
                                                             axis=1)
             D_dosage_outcomes = dict()
             for treatment in range(self.num_treatments):
@@ -104,11 +113,11 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_h1 = tf.nn.elu(equivariant_layer(inputs, self.h_inv_eqv_dim, layer_id=1,
-                                                   treatment_id=treatment, agg=self.agg) + patient_features_representation) # broadcasting
+                                                   treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer) + patient_features_representation) # broadcasting
                 D_h2 = tf.nn.elu(equivariant_layer(D_h1, self.h_inv_eqv_dim, layer_id=2,
-                                                    treatment_id=treatment, agg=self.agg))
+                                                    treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer))
                 D_logits_treatment = tf.layers.dense(D_h2, 1, activation=None,
-                                                     name='treatment_output_%s' % str(treatment))
+                                                     name='treatment_output_%s' % str(treatment), kernel_initializer=self.initializer)
 
                 D_dosage_outcomes[treatment] = tf.squeeze(D_logits_treatment, axis=-1)
 
@@ -120,7 +129,7 @@ class SCIGAN_Model:
     def treatment_discriminator(self, x, y, treatment_dosage_samples, treatment_dosage_mask,
                                 G_treatment_dosage_outcomes):
         with tf.variable_scope('treatment_discriminator', reuse=tf.AUTO_REUSE):
-            patient_features_representation = tf.layers.dense(x, self.h_dim, activation=tf.nn.elu)
+            patient_features_representation = tf.layers.dense(x, self.h_dim, activation=tf.nn.elu, kernel_initializer=self.initializer)
 
             D_treatment_outcomes = dict()
             for treatment in range(self.num_treatments):
@@ -134,7 +143,7 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_treatment_rep = invariant_layer(x=inputs, h_dim=self.h_inv_eqv_dim,
-                                                    treatment_id=treatment, agg=self.agg)
+                                                    treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer)
 
                 D_treatment_outcomes[treatment] = D_treatment_rep
 
@@ -143,18 +152,18 @@ class SCIGAN_Model:
 
             D_treatment_rep_hidden = tf.layers.dense(D_shared_representation, self.h_dim, activation=tf.nn.elu,
                                                      name='rep_all',
-                                                     reuse=tf.AUTO_REUSE)
+                                                     reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
             D_treatment_logits = tf.layers.dense(D_treatment_rep_hidden, self.num_treatments, activation=None,
                                                  name='output_all',
-                                                 reuse=tf.AUTO_REUSE)
+                                                 reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
         return D_treatment_logits
 
     def inference(self, x, treatment_dosage_samples):
         with tf.variable_scope('inference', reuse=tf.AUTO_REUSE):
             inputs = x
-            I_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared')
+            I_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared', kernel_initializer=self.initializer)
 
             I_treatment_dosage_outcomes = dict()
 
@@ -168,15 +177,15 @@ class SCIGAN_Model:
 
                     treatment_layer_1 = tf.layers.dense(input_counterfactual_dosage, self.h_dim, activation=tf.nn.elu,
                                                         name='treatment_layer_1_%s' % str(treatment),
-                                                        reuse=tf.AUTO_REUSE)
+                                                        reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     treatment_layer_2 = tf.layers.dense(treatment_layer_1, self.h_dim, activation=tf.nn.elu,
                                                         name='treatment_layer_2_%s' % str(treatment),
-                                                        reuse=tf.AUTO_REUSE)
+                                                        reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
                                                               name='treatment_output_%s' % str(treatment),
-                                                              reuse=tf.AUTO_REUSE)
+                                                              reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     dosage_counterfactuals[index] = treatment_dosage_output
 
