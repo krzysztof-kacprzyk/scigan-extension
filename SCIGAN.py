@@ -383,7 +383,7 @@ class SCIGAN_Model:
             treatment_dosage_mask[range(self.batch_size), T_mb, factual_dosage_position] = 1
             treatment_one_hot = np.sum(treatment_dosage_mask, axis=-1)
 
-            _, I_loss_curr = self.sess.run([I_solver, I_loss],
+            _, I_loss_curr, I_loss_curr_1, I_loss_curr_2 = self.sess.run([I_solver, I_loss, I_loss1, I_loss2],
                                            feed_dict={self.X: X_mb, self.T: treatment_one_hot,
                                                       self.D: D_mb[:, np.newaxis],
                                                       self.Treatment_Dosage_Samples: treatment_dosage_samples,
@@ -394,6 +394,8 @@ class SCIGAN_Model:
             if it % 1000 == 0 and verbose:
                 print('Iter: {}'.format(it))
                 print('I_loss: {:.4}'.format((I_loss_curr)))
+                print('I_loss1: {:.4}'.format((np.sqrt(I_loss_curr_1))))
+                print('I_loss2: {:.4}'.format((np.sqrt(I_loss_curr_2))))
                 print()
 
         tf.compat.v1.saved_model.simple_save(self.sess, export_dir=self.export_dir,
