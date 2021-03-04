@@ -21,7 +21,8 @@ def sample_dosages(batch_size, num_treatments, num_dosages):
     return dosage_samples
 
 
-def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data):
+def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data,
+                          use_gan=False, t=None, d=None, y=None):
     batch_size = test_data['x'].shape[0]
 
     treatment_dosage_samples = sample_dosages(batch_size, num_treatments, num_dosage_samples)
@@ -31,23 +32,53 @@ def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data):
     treatment_dosage_mask = np.zeros(shape=[batch_size, num_treatments, num_dosage_samples])
     treatment_dosage_mask[range(batch_size), test_data['t'], factual_dosage_position] = 1
 
-    I_logits = sess.run('inference_outcomes:0',
-                        feed_dict={'input_features:0': test_data['x'],
-                                   'input_treatment_dosage_samples:0': treatment_dosage_samples})
+    if use_gan:
 
-    Y_pred = np.sum(treatment_dosage_mask * I_logits, axis=(1, 2))
+        noise_el = np.random.uniform(0., 1.)
+
+        noise = np.tile(noise_el, [batch_size, num_treatments * num_dosage_samples])
+
+        one_hot_treatment = np.zeros(shape=[batch_size, num_treatments])
+
+        one_hot_treatment[range(batch_size), np.repeat(t, batch_size)] = 1
+
+        dosage = np.expand_dims(np.repeat(d, batch_size), axis=-1)
+
+        y = np.expand_dims(np.repeat(y, batch_size), axis=-1)
+
+        logits = sess.run('generator_outcomes:0',
+                        feed_dict={'input_features:0': test_data['x'],
+                                   'input_treatment_dosage_samples:0': treatment_dosage_samples,
+                                   'input_treatment:0': one_hot_treatment,
+                                   'input_dosage:0': dosage,
+                                   'input_noise:0': noise,
+                                   'input_y:0': y})
+    else:
+        logits = sess.run('inference_outcomes:0',
+                            feed_dict={'input_features:0': test_data['x'],
+                                    'input_treatment_dosage_samples:0': treatment_dosage_samples})
+
+    Y_pred = np.sum(treatment_dosage_mask * logits, axis=(1, 2))
 
     return Y_pred
 
 
 class DoseCurvePlotter:
 
-    def __init__(self, dataset, test_patients, num_treatments, num_dosage_samples, model_folder):
+    def __init__(self, dataset, test_patients, num_treatments, num_dosage_samples, model_folder, fig_size, fig_dpi,
+                 use_gan=False, test_t=None, test_d=None, test_y=None):
         self.dataset = dataset
         self.test_patients = test_patients
         self.num_treatments = num_treatments
         self.num_dosage_samples = num_dosage_samples
         self.model_folder = model_folder
+        self.fig_size = fig_size
+        self.fig_dpi = fig_dpi
+        self.use_gan = use_gan
+        self.test_t = test_t
+        self.test_d = test_d
+        self.test_y = test_y
+
 
     def get_num_of_test_patients(self):
         return len(self.test_patients)
@@ -99,6 +130,52 @@ class DoseCurvePlotter:
         else:
             return pred_dose_response_curve
     
+    def get_pred_dose_response_curves(self, patients_treatments_list, discretization_power=6):
+
+        pred_dose_responses = []
+
+        with tf.Session(graph=tf.Graph()) as sess:
+            tf.saved_model.loader.load(sess, ["serve"], self.model_folder)
+        
+            num_integration_samples = 2 ** discretization_power + 1
+            step_size = 1. / num_integration_samples
+            treatment_strengths = np.linspace(np.finfo(float).eps, 1, num_integration_samples)
+
+            for patient_treatment in patients_treatments_list:
+                
+                patient_idx = patient_treatment[0]
+                treatment_idx = patient_treatment[1]
+
+                patient = self.test_patients[patient_idx]
+
+                test_data = dict()
+                test_data['x'] = np.repeat(np.expand_dims(patient, axis=0), num_integration_samples, axis=0)
+                test_data['t'] = np.repeat(treatment_idx, num_integration_samples)
+                test_data['d'] = treatment_strengths
+
+                t = None
+                d = None
+                y = None
+
+                if self.use_gan:
+                    t = self.test_t[patient_idx]
+                    d = self.test_d[patient_idx]
+                    y = self.test_y[patient_idx]
+
+                pred_dose_response = get_model_predictions(sess=sess, num_treatments=self.num_treatments,
+                                                            num_dosage_samples=self.num_dosage_samples, test_data=test_data, 
+                                                            use_gan=self.use_gan,
+                                                            t=t, d=d, y=y)
+                pred_dose_response = pred_dose_response * (
+                        self.dataset['metadata']['y_max'] - self.dataset['metadata']['y_min']) + \
+                                        self.dataset['metadata']['y_min']
+                
+                pred_dose_responses.append(pred_dose_response)
+        
+        return pred_dose_responses
+        
+
+    
     def get_true_dose_response_curve(self, patient_idx, treatment_idx, discrete=True, discretization_power=6):
         
         patient = self.test_patients[patient_idx]
@@ -141,7 +218,7 @@ class DoseCurvePlotter:
         step_size = 1. / num_integration_samples
         treatment_strengths = np.linspace(np.finfo(float).eps, 1, num_integration_samples)
 
-        fig, axs = plt.subplots(nrows, ncols)
+        fig, axs = plt.subplots(nrows, ncols, figsize=self.fig_size, dpi=self.fig_dpi)
 
         for row in range(nrows):
             for col in range(ncols):
@@ -158,6 +235,41 @@ class DoseCurvePlotter:
                 axs[row, col].plot(treatment_strengths, pred_dose_response, label='Predicted')
                 axs[row, col].set_title(f"Treatment: {treatment_idx}")
 
+        plt.tight_layout()
+        plt.show()
+
+    def plot_sample_dose_curves(self, discretization_power=6):
+
+        num_integration_samples = 2 ** discretization_power + 1
+        step_size = 1. / num_integration_samples
+        treatment_strengths = np.linspace(np.finfo(float).eps, 1, num_integration_samples)
+
+        nrows = self.num_treatments
+        ncols = 6
+
+        tenth_num_patients = self.get_num_of_test_patients() // 10
+
+        patient_idx_list = [i * tenth_num_patients for i in range(ncols)]
+
+        patients_treatments_list = list(zip(patient_idx_list * 3, [i//ncols for i in range(ncols * nrows)]))
+
+        pred_dose_responses = self.get_pred_dose_response_curves(patients_treatments_list)
+
+        fig, axs = plt.subplots(nrows, ncols, figsize=self.fig_size, dpi=self.fig_dpi)
+
+        for row in range(nrows):
+            for col in range(ncols):
+
+                pred_dose_response = pred_dose_responses[row * ncols + col]
+
+                true_dose_response = self.get_true_dose_response_curve(patient_idx_list[col], row, discrete=True,
+                                                                discretization_power=discretization_power)                              
+
+                axs[row, col].plot(treatment_strengths, true_dose_response, label='True')
+                axs[row, col].plot(treatment_strengths, pred_dose_response, label='Predicted')
+                axs[row, col].set_title(f"Treatment: {row}")
+       
+        plt.tight_layout()
         plt.show()
 
     
@@ -169,6 +281,11 @@ def init_arg():
     parser.add_argument("--ds_input", default="datasets/generated")
     parser.add_argument("--models_folder", default="saved_models")
     parser.add_argument("--model_name", default="scigan_test")
+    parser.add_argument("--fig_size_h", default=4, type=int)
+    parser.add_argument("--fig_size_w", default=6, type=int)
+    parser.add_argument("--fig_dpi", default=100, type=int)
+    parser.add_argument("--use_gan", action='store_true')
+    parser.add_argument("--ds_type", choices=['train','val','test'], default='test')
 
     return parser.parse_args()
 
@@ -188,10 +305,21 @@ if __name__ == "__main__":
 
     model_dir = os.path.join(args.models_folder,args.model_name)
 
-    plotter = DoseCurvePlotter(dataset, dataset_test['x'], num_treatments=args.num_treatments,
-                                         num_dosage_samples=args.num_dosage_samples, model_folder=model_dir)
+    if args.ds_type == 'train':
+        chosen_ds = dataset_train
+    elif args.ds_type == 'val':
+        chosen_ds = dataset_val
+    else:
+        chosen_ds = dataset_test
+
+
+    plotter = DoseCurvePlotter(dataset, chosen_ds['x'], num_treatments=args.num_treatments,
+                                         num_dosage_samples=args.num_dosage_samples, model_folder=model_dir,
+                                         fig_size=(args.fig_size_w, args.fig_size_h), fig_dpi=args.fig_dpi,
+                                         use_gan=args.use_gan,
+                                         test_t=chosen_ds['t'], test_d=chosen_ds['d'], test_y=chosen_ds['y_normalized'])
     
-    plotter.plot_random_dose_curves(5,5)
+    plotter.plot_sample_dose_curves()
 
 
 

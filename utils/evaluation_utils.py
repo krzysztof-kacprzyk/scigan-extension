@@ -5,7 +5,10 @@ from scipy.integrate import romb
 import tensorflow as tf
 
 from data_simulation import get_patient_outcome
+from utils.model_utils import sample_Z
 from scipy.optimize import minimize
+
+from collections import defaultdict
 
 
 def sample_dosages(batch_size, num_treatments, num_dosages):
@@ -13,7 +16,7 @@ def sample_dosages(batch_size, num_treatments, num_dosages):
     return dosage_samples
 
 
-def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data):
+def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data, use_gan=False, t=None, d=None, y=None):
     batch_size = test_data['x'].shape[0]
 
     treatment_dosage_samples = sample_dosages(batch_size, num_treatments, num_dosage_samples)
@@ -23,11 +26,33 @@ def get_model_predictions(sess, num_treatments, num_dosage_samples, test_data):
     treatment_dosage_mask = np.zeros(shape=[batch_size, num_treatments, num_dosage_samples])
     treatment_dosage_mask[range(batch_size), test_data['t'], factual_dosage_position] = 1
 
-    I_logits = sess.run('inference_outcomes:0',
-                        feed_dict={'input_features:0': test_data['x'],
-                                   'input_treatment_dosage_samples:0': treatment_dosage_samples})
+    if use_gan:
 
-    Y_pred = np.sum(treatment_dosage_mask * I_logits, axis=(1, 2))
+        noise_el = np.random.uniform(0., 1.)
+
+        noise = np.tile(noise_el, [batch_size, num_treatments * num_dosage_samples])
+
+        one_hot_treatment = np.zeros(shape=[batch_size, num_treatments])
+
+        one_hot_treatment[range(batch_size), np.repeat(t, batch_size)] = 1
+
+        dosage = np.expand_dims(np.repeat(d, batch_size), axis=-1)
+
+        y = np.expand_dims(np.repeat(y, batch_size), axis=-1)
+
+        logits = sess.run('generator_outcomes:0',
+                        feed_dict={'input_features:0': test_data['x'],
+                                   'input_treatment_dosage_samples:0': treatment_dosage_samples,
+                                   'input_treatment:0': one_hot_treatment,
+                                   'input_dosage:0': dosage,
+                                   'input_noise:0': noise,
+                                   'input_y:0': y})
+    else:
+        logits = sess.run('inference_outcomes:0',
+                            feed_dict={'input_features:0': test_data['x'],
+                                    'input_treatment_dosage_samples:0': treatment_dosage_samples})
+
+    Y_pred = np.sum(treatment_dosage_mask * logits, axis=(1, 2))
 
     return Y_pred
 
@@ -40,13 +65,16 @@ def get_true_dose_response_curve(news_dataset, patient, treatment_idx):
     return true_dose_response_curve
 
 
-def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samples, model_folder):
+def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samples, model_folder, use_gan=False, test_t=None, test_d=None, test_y=None):
     mises = []
     dosage_policy_errors = []
     policy_errors = []
     pred_best = []
     pred_vals = []
     true_best = []
+
+    mises_treatments = defaultdict(list)
+    dpe_treatments = defaultdict(list)
 
     samples_power_of_two = 6
     num_integration_samples = 2 ** samples_power_of_two + 1
@@ -56,15 +84,25 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
     with tf.Session(graph=tf.Graph()) as sess:
         tf.saved_model.loader.load(sess, ["serve"], model_folder)
 
-        for patient in test_patients:
+        for i, patient in enumerate(test_patients):
             for treatment_idx in range(num_treatments):
                 test_data = dict()
                 test_data['x'] = np.repeat(np.expand_dims(patient, axis=0), num_integration_samples, axis=0)
                 test_data['t'] = np.repeat(treatment_idx, num_integration_samples)
                 test_data['d'] = treatment_strengths
 
+                t = None
+                d = None
+                y = None
+
+                if use_gan:
+                    t = test_t[i]
+                    d = test_d[i]
+                    y = test_y[i]
+
                 pred_dose_response = get_model_predictions(sess=sess, num_treatments=num_treatments,
-                                                           num_dosage_samples=num_dosage_samples, test_data=test_data)
+                                                           num_dosage_samples=num_dosage_samples, test_data=test_data, use_gan=use_gan,
+                                                           t=t, d=d, y=y)
                 pred_dose_response = pred_dose_response * (
                         dataset['metadata']['y_max'] - dataset['metadata']['y_min']) + \
                                      dataset['metadata']['y_min']
@@ -74,6 +112,7 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
 
                 mise = romb(np.square(true_outcomes - pred_dose_response), dx=step_size)
                 mises.append(mise)
+                mises_treatments[treatment_idx].append(mise)
 
                 best_encountered_x = treatment_strengths[np.argmax(pred_dose_response)]
 
@@ -85,7 +124,8 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
 
                     ret_val = get_model_predictions(sess=sess, num_treatments=num_treatments,
                                                     num_dosage_samples=num_dosage_samples,
-                                                    test_data=test_data)
+                                                    test_data=test_data, use_gan=use_gan,
+                                                    t=t, d=d, y=y)
                     ret_val = ret_val * (dataset['metadata']['y_max'] - dataset['metadata']['y_min']) + \
                               dataset['metadata']['y_min']
                     return ret_val
@@ -106,6 +146,7 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
 
                 dosage_policy_error = (max_true_y - max_pred_y) ** 2
                 dosage_policy_errors.append(dosage_policy_error)
+                dpe_treatments[treatment_idx].append(dosage_policy_error)
 
                 pred_best.append(max_pred_opt_y)
                 pred_vals.append(max_pred_y)
@@ -118,4 +159,6 @@ def compute_eval_metrics(dataset, test_patients, num_treatments, num_dosage_samp
             policy_error = (optimal_val - selected_val) ** 2
             policy_errors.append(policy_error)
 
-    return np.sqrt(np.mean(mises)), np.sqrt(np.mean(dosage_policy_errors)), np.sqrt(np.mean(policy_errors))
+    return (np.sqrt(np.mean(mises)), np.sqrt(np.mean(dosage_policy_errors)), np.sqrt(np.mean(policy_errors)),
+    {treatment:np.sqrt(np.mean(mises_treatments[treatment])) for treatment in mises_treatments.keys()},
+    {treatment:np.sqrt(np.mean(dpe_treatments[treatment])) for treatment in dpe_treatments.keys()})
