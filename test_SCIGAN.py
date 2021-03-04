@@ -6,7 +6,7 @@ import shutil
 import tensorflow as tf
 import pickle
 
-from data_simulation import get_dataset_splits, TCGA_Data
+from data_simulation import get_dataset_splits, TCGA_Data, CTG_Data
 from SCIGAN import SCIGAN_Model
 from SCIGAN_deep import SCIGAN_deep_Model, SCIGAN_deep_2_Model, SCIGAN_deep_3_Model, SCIGAN_deep_4_Model
 from utils.evaluation_utils import compute_eval_metrics
@@ -38,6 +38,11 @@ def init_arg():
     parser.add_argument("--deep", action="store_true")
     parser.add_argument("--v", default=1, type=int)
     parser.add_argument("--agg", choices=['sum', 'l1', 'l2', 'inf'], default='sum')
+    parser.add_argument("--use_gan", action='store_true')
+    parser.add_argument("--modify_i_loss", type=int, default=0)
+    parser.add_argument("--modify_g_loss", type=int, default=0)
+    parser.add_argument("--xavier", action='store_true')
+    parser.add_argument("--source", choices=['tcga','ctg'], default='tcga')
 
 
     return parser.parse_args()
@@ -56,9 +61,14 @@ if __name__ == "__main__":
     dataset_params['test_fraction'] = args.test_fraction
     dataset_params['filepath'] = args.filepath
 
-    data_class = TCGA_Data(dataset_params)
-    dataset = data_class.dataset
-    dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
+    if args.source == 'tcga':
+        data_class = TCGA_Data(dataset_params)
+        dataset = data_class.dataset
+        dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
+    elif args.source == 'ctg':
+        data_class = CTG_Data(dataset_params)
+        dataset = data_class.dataset
+        dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
 
     if args.save_dataset:
 
@@ -83,7 +93,8 @@ if __name__ == "__main__":
               'num_dosage_samples': args.num_dosage_samples, 'export_dir': export_dir,
               'alpha': args.alpha, 'batch_size': args.batch_size, 'h_dim': args.h_dim,
               'h_inv_eqv_dim': args.h_inv_eqv_dim, 'iterations_gan':args.iterations_gan,
-              'iterations_inference':args.iterations_inference, 'agg':args.agg}
+              'iterations_inference':args.iterations_inference, 'agg':args.agg, 'modify_i_loss':args.modify_i_loss,
+              'modify_g_loss':args.modify_g_loss, 'xavier':args.xavier}
     if args.deep:
         if args.v == 1:
             model_baseline = SCIGAN_deep_Model(params)
@@ -101,7 +112,8 @@ if __name__ == "__main__":
                          Train_Y=dataset_train['y_normalized'], verbose=args.verbose)
 
     mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
-                                         num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir)
+                                         num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir, use_gan=args.use_gan,
+                                         test_t=dataset_test['t'], test_d=dataset_test['d'], test_y=dataset_test['y_normalized'])
 
     print("Mise: %s" % str(mise))
     print("DPE: %s" % str(dpe))

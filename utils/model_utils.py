@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def equivariant_layer(x, h_dim, layer_id, treatment_id, agg='sum'):
+def equivariant_layer(x, h_dim, layer_id, treatment_id, agg='sum', kernel_initializer=None):
 
     if agg == 'sum':
         xm = tf.reduce_sum(x, axis=1, keepdims=True)
@@ -18,18 +18,18 @@ def equivariant_layer(x, h_dim, layer_id, treatment_id, agg='sum'):
 
     l_gamma = tf.layers.dense(x, h_dim, activation=None,
                               name='eqv_%s_treatment_%s_gamma' % (str(layer_id), str(treatment_id)),
-                              reuse=tf.AUTO_REUSE)
+                              reuse=tf.AUTO_REUSE, kernel_initializer=kernel_initializer)
     l_lambda = tf.layers.dense(xm, h_dim, activation=None, use_bias=False,
                                name='eqv_%s_treatment_%s_lambda' % (str(layer_id), str(treatment_id)),
-                               reuse=tf.AUTO_REUSE)
+                               reuse=tf.AUTO_REUSE, kernel_initializer=kernel_initializer)
     out = l_gamma - l_lambda
     return out
 
 
-def invariant_layer(x, h_dim, treatment_id, agg='sum'):
+def invariant_layer(x, h_dim, treatment_id, agg='sum', kernel_initializer=None):
     rep_layer_1 = tf.layers.dense(x, h_dim, activation=tf.nn.elu,
                                   name='inv_treatment_%s' % str(treatment_id),
-                                  reuse=tf.AUTO_REUSE)
+                                  reuse=tf.AUTO_REUSE, kernel_initializer=kernel_initializer)
     if agg == 'sum':
         rep_sum = tf.reduce_sum(rep_layer_1, axis=1)
     elif agg == 'l1':

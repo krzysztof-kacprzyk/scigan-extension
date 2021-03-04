@@ -26,9 +26,18 @@ class SCIGAN_Model:
         self.iterations_inference = params['iterations_inference']
 
         self.agg = params['agg']
+        self.modify_i_loss = params['modify_i_loss']
+        self.modify_g_loss = params['modify_g_loss']
+
+        self.xavier = params['xavier']
 
         tf.reset_default_graph()
         tf.random.set_random_seed(10)
+
+        if self.xavier:
+            self.initializer = tf.contrib.layers.xavier_initializer(uniform=False)
+        else:
+            self.initializer = None
 
         # Feature (X)
         self.X = tf.placeholder(tf.float32, shape=[None, self.num_features], name='input_features')
@@ -52,7 +61,7 @@ class SCIGAN_Model:
     def generator(self, x, y, t, d, z, treatment_dosage_samples):
         with tf.variable_scope('generator', reuse=tf.AUTO_REUSE):
             inputs = tf.concat(axis=1, values=[x, y, t, d, z])
-            G_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared')
+            G_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared', kernel_initializer=self.initializer)
             G_treatment_dosage_outcomes = dict()
 
             for treatment in range(self.num_treatments):
@@ -63,14 +72,16 @@ class SCIGAN_Model:
                 input_counterfactual_dosage = tf.concat(axis=1, values=[G_shared_expand, treatment_dosages])
 
                 treatment_layer_1 = tf.layers.dense(input_counterfactual_dosage, self.h_dim, activation=tf.nn.elu,
-                                                    name='treatment_layer_1_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+                                                    name='treatment_layer_1_%s' % str(treatment), reuse=tf.AUTO_REUSE,
+                                                    kernel_initializer=self.initializer)
 
                 treatment_layer_2 = tf.layers.dense(treatment_layer_1, self.h_dim, activation=tf.nn.elu,
-                                                    name='treatment_layer_2_%s' % str(treatment), reuse=tf.AUTO_REUSE)
+                                                    name='treatment_layer_2_%s' % str(treatment), reuse=tf.AUTO_REUSE,
+                                                    kernel_initializer=self.initializer)
 
                 treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
                                                           name='treatment_output_%s' % str(treatment),
-                                                          reuse=tf.AUTO_REUSE)
+                                                          reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                 dosage_counterfactuals = tf.reshape(treatment_dosage_output, shape=(-1, self.num_dosage_samples))
 
@@ -88,7 +99,7 @@ class SCIGAN_Model:
             # patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_dim, activation=tf.nn.elu),
             #                                                  axis=1)
 
-            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_inv_eqv_dim, activation=tf.nn.elu),
+            patient_features_representation = tf.expand_dims(tf.layers.dense(x, self.h_inv_eqv_dim, activation=tf.nn.elu, kernel_initializer=self.initializer),
                                                             axis=1)
             D_dosage_outcomes = dict()
             for treatment in range(self.num_treatments):
@@ -102,11 +113,11 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_h1 = tf.nn.elu(equivariant_layer(inputs, self.h_inv_eqv_dim, layer_id=1,
-                                                   treatment_id=treatment, agg=self.agg) + patient_features_representation) # broadcasting
+                                                   treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer) + patient_features_representation) # broadcasting
                 D_h2 = tf.nn.elu(equivariant_layer(D_h1, self.h_inv_eqv_dim, layer_id=2,
-                                                    treatment_id=treatment, agg=self.agg))
+                                                    treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer))
                 D_logits_treatment = tf.layers.dense(D_h2, 1, activation=None,
-                                                     name='treatment_output_%s' % str(treatment))
+                                                     name='treatment_output_%s' % str(treatment), kernel_initializer=self.initializer)
 
                 D_dosage_outcomes[treatment] = tf.squeeze(D_logits_treatment, axis=-1)
 
@@ -118,7 +129,7 @@ class SCIGAN_Model:
     def treatment_discriminator(self, x, y, treatment_dosage_samples, treatment_dosage_mask,
                                 G_treatment_dosage_outcomes):
         with tf.variable_scope('treatment_discriminator', reuse=tf.AUTO_REUSE):
-            patient_features_representation = tf.layers.dense(x, self.h_dim, activation=tf.nn.elu)
+            patient_features_representation = tf.layers.dense(x, self.h_dim, activation=tf.nn.elu, kernel_initializer=self.initializer)
 
             D_treatment_outcomes = dict()
             for treatment in range(self.num_treatments):
@@ -132,7 +143,7 @@ class SCIGAN_Model:
 
                 inputs = tf.concat(axis=-1, values=[dosage_samples, dosage_potential_outcomes])
                 D_treatment_rep = invariant_layer(x=inputs, h_dim=self.h_inv_eqv_dim,
-                                                    treatment_id=treatment, agg=self.agg)
+                                                    treatment_id=treatment, agg=self.agg, kernel_initializer=self.initializer)
 
                 D_treatment_outcomes[treatment] = D_treatment_rep
 
@@ -141,18 +152,18 @@ class SCIGAN_Model:
 
             D_treatment_rep_hidden = tf.layers.dense(D_shared_representation, self.h_dim, activation=tf.nn.elu,
                                                      name='rep_all',
-                                                     reuse=tf.AUTO_REUSE)
+                                                     reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
             D_treatment_logits = tf.layers.dense(D_treatment_rep_hidden, self.num_treatments, activation=None,
                                                  name='output_all',
-                                                 reuse=tf.AUTO_REUSE)
+                                                 reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
         return D_treatment_logits
 
     def inference(self, x, treatment_dosage_samples):
         with tf.variable_scope('inference', reuse=tf.AUTO_REUSE):
             inputs = x
-            I_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared')
+            I_shared = tf.layers.dense(inputs, self.h_dim, activation=tf.nn.elu, name='shared', kernel_initializer=self.initializer)
 
             I_treatment_dosage_outcomes = dict()
 
@@ -166,15 +177,15 @@ class SCIGAN_Model:
 
                     treatment_layer_1 = tf.layers.dense(input_counterfactual_dosage, self.h_dim, activation=tf.nn.elu,
                                                         name='treatment_layer_1_%s' % str(treatment),
-                                                        reuse=tf.AUTO_REUSE)
+                                                        reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     treatment_layer_2 = tf.layers.dense(treatment_layer_1, self.h_dim, activation=tf.nn.elu,
                                                         name='treatment_layer_2_%s' % str(treatment),
-                                                        reuse=tf.AUTO_REUSE)
+                                                        reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     treatment_dosage_output = tf.layers.dense(treatment_layer_2, 1, activation=None,
                                                               name='treatment_output_%s' % str(treatment),
-                                                              reuse=tf.AUTO_REUSE)
+                                                              reuse=tf.AUTO_REUSE, kernel_initializer=self.initializer)
 
                     dosage_counterfactuals[index] = treatment_dosage_output
 
@@ -236,13 +247,24 @@ class SCIGAN_Model:
         G_loss_GAN = -D_combined_loss
         G_logit_factual = tf.expand_dims(tf.reduce_sum(self.Treatment_Dosage_Mask * G_logits, axis=[1, 2]), axis=-1)
         G_loss_R = tf.reduce_mean((self.Y - G_logit_factual) ** 2)
-        G_loss = self.alpha * tf.sqrt(G_loss_R) + G_loss_GAN
+
+        if self.modify_g_loss == 0:
+            G_loss = self.alpha * tf.sqrt(G_loss_R) + G_loss_GAN
+        elif self.modify_g_loss == 1:
+            G_loss = self.alpha * G_loss_R + G_loss_GAN
 
         # 4. Inference loss
         I_logit_factual = tf.expand_dims(tf.reduce_sum(self.Treatment_Dosage_Mask * I_logits, axis=[1, 2]), axis=-1)
         I_loss1 = tf.reduce_mean((G_logits - I_logits) ** 2)
         I_loss2 = tf.reduce_mean((self.Y - I_logit_factual) ** 2)
-        I_loss = tf.sqrt(I_loss1) + tf.sqrt(I_loss2)
+        if self.modify_i_loss == 0:
+            I_loss = tf.sqrt(I_loss1) + tf.sqrt(I_loss2)
+        elif self.modify_i_loss == 1:
+            I_loss = tf.sqrt(I_loss1 + I_loss2)
+        elif self.modify_i_loss == 2:
+            I_loss = tf.sqrt(I_loss2)
+        elif self.modify_i_loss == 3:
+            I_loss = I_loss1 + I_loss2
 
         theta_G = tf.trainable_variables(scope='generator')
         theta_D_dosage = tf.trainable_variables(scope='dosage_discriminator')
@@ -349,8 +371,8 @@ class SCIGAN_Model:
 
             # %% Debugging
             if it % 1000 == 0 and verbose:
-                D_treatment_loss_curr, D_dosage_loss_curr, G_loss_curr, = self.sess.run(
-                    [D_treatment_loss, D_dosage_loss, G_loss],
+                D_treatment_loss_curr, D_dosage_loss_curr, G_loss_curr, G_loss_GAN_curr, G_loss_R_curr = self.sess.run(
+                    [D_treatment_loss, D_dosage_loss, G_loss, G_loss_GAN, G_loss_R],
                     feed_dict={self.X: X_mb, self.T: treatment_one_hot,
                                self.D: D_mb[:, np.newaxis],
                                self.Treatment_Dosage_Samples: treatment_dosage_samples,
@@ -361,6 +383,8 @@ class SCIGAN_Model:
                 print('D_loss_treatments: {:.4}'.format((D_treatment_loss_curr)))
                 print('D_loss_dosages: {:.4}'.format((D_dosage_loss_curr)))
                 print('G_loss: {:.4}'.format((G_loss_curr)))
+                print('G_loss_GAN: {:.4}'.format((G_loss_GAN_curr)))
+                print('G_loss_R: {:.4}'.format((G_loss_R_curr)))
                 print()
 
         # Train Inference Network
@@ -383,7 +407,7 @@ class SCIGAN_Model:
             treatment_dosage_mask[range(self.batch_size), T_mb, factual_dosage_position] = 1
             treatment_one_hot = np.sum(treatment_dosage_mask, axis=-1)
 
-            _, I_loss_curr = self.sess.run([I_solver, I_loss],
+            _, I_loss_curr, I_loss_curr_1, I_loss_curr_2 = self.sess.run([I_solver, I_loss, I_loss1, I_loss2],
                                            feed_dict={self.X: X_mb, self.T: treatment_one_hot,
                                                       self.D: D_mb[:, np.newaxis],
                                                       self.Treatment_Dosage_Samples: treatment_dosage_samples,
@@ -394,6 +418,8 @@ class SCIGAN_Model:
             if it % 1000 == 0 and verbose:
                 print('Iter: {}'.format(it))
                 print('I_loss: {:.4}'.format((I_loss_curr)))
+                print('I_loss1: {:.4}'.format((I_loss_curr_1)))
+                print('I_loss2: {:.4}'.format((I_loss_curr_2)))
                 print()
 
         tf.compat.v1.saved_model.simple_save(self.sess, export_dir=self.export_dir,
