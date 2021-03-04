@@ -147,6 +147,7 @@ class TCGA_Data():
         self.dataset = self.generate_dataset(self.patients, self.num_treatments)
 
     def normalize_data(self, patient_features):
+        
         x = (patient_features - np.min(patient_features, axis=0)) / (
                 np.max(patient_features, axis=0) - np.min(patient_features, axis=0))
 

@@ -90,6 +90,12 @@ if __name__ == "__main__":
     mise_dict_list = []
     dpe_dict_list = []
 
+    gan_mise_list =[]
+    gan_dpe_list = []
+    gan_pe_list = []
+    gan_mise_dict_list = []
+    gan_dpe_dict_list = []
+
     for i in range(args.n):
 
         print("-"*20)
@@ -122,9 +128,12 @@ if __name__ == "__main__":
         model_baseline.train(Train_X=dataset_train['x'], Train_T=dataset_train['t'], Train_D=dataset_train['d'],
                             Train_Y=dataset_train['y_normalized'], verbose=args.verbose)
 
+
         mise, dpe, pe, mise_dict, dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
-                                            num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir, use_gan=args.use_gan,
+                                            num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir, use_gan=False,
                                             test_t=dataset_test['t'], test_d=dataset_test['d'], test_y=dataset_test['y_normalized'])
+        
+        
         
         mise_list.append(mise)
         dpe_list.append(dpe)
@@ -142,6 +151,31 @@ if __name__ == "__main__":
         for treatment_idx in dpe_dict.keys():
             print(f"DPE for treatment {treatment_idx}: {dpe_dict[treatment_idx]}")
 
+        if args.use_gan:
+
+            gan_mise, gan_dpe, gan_pe, gan_mise_dict, gan_dpe_dict = compute_eval_metrics(dataset, dataset_test['x'], num_treatments=params['num_treatments'],
+                                            num_dosage_samples=params['num_dosage_samples'], model_folder=export_dir, use_gan=True,
+                                            test_t=dataset_test['t'], test_d=dataset_test['d'], test_y=dataset_test['y_normalized'])
+        
+        
+            
+            gan_mise_list.append(gan_mise)
+            gan_dpe_list.append(gan_dpe)
+            gan_pe_list.append(gan_pe)
+            gan_mise_dict_list.append(gan_mise_dict)
+            gan_dpe_dict_list.append(gan_dpe_dict)
+
+            print("GAN Mise: %s" % str(gan_mise))
+            print("GAN DPE: %s" % str(gan_dpe))
+            print("GAN PE: %s" % str(gan_pe))
+
+            for treatment_idx in gan_mise_dict.keys():
+                print(f"Mise for treatment {treatment_idx}: {gan_mise_dict[treatment_idx]}")
+            
+            for treatment_idx in gan_dpe_dict.keys():
+                print(f"DPE for treatment {treatment_idx}: {gan_dpe_dict[treatment_idx]}")
+        
+
     print("-"*20)
     print(f"Results for all {args.n} tests")
     print("-"*20)
@@ -156,4 +190,23 @@ if __name__ == "__main__":
     for treatment_idx in range(args.num_treatments):
         dpe_treatment_list = [dpe_dict[treatment_idx] for dpe_dict in dpe_dict_list]
         print(f"Average DPE for treatment {treatment_idx}: {np.mean(dpe_treatment_list)} | std: {np.std(dpe_treatment_list)}")
+    
+    if args.use_gan:
+
+        print("-"*20)
+        print(f"GAN Results for all {args.n} tests")
+        print("-"*20)
+        print(f"GAN Average MISE: {np.mean(gan_mise_list)} | std: {np.std(gan_mise_list)}")
+        print(f"GAN Average DPE: {np.mean(gan_dpe_list)} | std: {np.std(gan_dpe_list)}")
+        print(f"GAN Average PE: {np.mean(gan_pe_list)} | std: {np.std(gan_pe_list)}")
+
+        for treatment_idx in range(args.num_treatments):
+            gan_mise_treatment_list = [gan_mise_dict[treatment_idx] for gan_mise_dict in gan_mise_dict_list]
+            print(f"GAN Average Mise for treatment {treatment_idx}: {np.mean(gan_mise_treatment_list)} | std: {np.std(gan_mise_treatment_list)}")
+
+        for treatment_idx in range(args.num_treatments):
+            gan_dpe_treatment_list = [gan_dpe_dict[treatment_idx] for gan_dpe_dict in gan_dpe_dict_list]
+            print(f"GAN Average DPE for treatment {treatment_idx}: {np.mean(gan_dpe_treatment_list)} | std: {np.std(gan_dpe_treatment_list)}")
+
+    
 
