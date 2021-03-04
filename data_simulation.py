@@ -214,7 +214,7 @@ class CTG_Data():
 
         self.filepath = args['filepath']
 
-        self.patients = pickle.load(open(self.filepath, 'rb'))
+        self.patients = self.normalize_data(pickle.load(open(self.filepath, 'rb')))
 
         self.scaling_parameteter = 10
         self.noise_std = 0.2
