@@ -199,3 +199,87 @@ class TCGA_Data():
         tcga_dataset['metadata']['test_index'] = test_indices
 
         return tcga_dataset
+
+
+class CTG_Data():
+    def __init__(self, args):
+        np.random.seed(3)
+
+        self.num_treatments = args['num_treatments']
+        self.treatment_selection_bias = args['treatment_selection_bias']
+        self.dosage_selection_bias = args['dosage_selection_bias']
+
+        self.validation_fraction = args['validation_fraction']
+        self.test_fraction = args['test_fraction']
+
+        self.filepath = args['filepath']
+
+        self.patients = pickle.load(open(self.filepath, 'rb'))
+
+        self.scaling_parameteter = 10
+        self.noise_std = 0.2
+
+        self.num_weights = 3
+        self.v = np.zeros(shape=(self.num_treatments, self.num_weights, self.patients.shape[1]))
+
+        for i in range(self.num_treatments):
+            for j in range(self.num_weights):
+                self.v[i][j] = np.random.uniform(0, 10, size=(self.patients.shape[1]))
+                self.v[i][j] = self.v[i][j] / np.linalg.norm(self.v[i][j])
+
+        self.dataset = self.generate_dataset(self.patients, self.num_treatments)
+
+    def normalize_data(self, patient_features):
+        x = (patient_features - np.min(patient_features, axis=0)) / (
+                np.max(patient_features, axis=0) - np.min(patient_features, axis=0))
+
+        for i in range(x.shape[0]):
+            x[i] = x[i] / np.linalg.norm(x[i])
+
+        return x
+
+    def generate_dataset(self, patient_features, num_treatments):
+        ctg_dataset = dict()
+        ctg_dataset['x'] = []
+        ctg_dataset['y'] = []
+        ctg_dataset['t'] = []
+        ctg_dataset['d'] = []
+        ctg_dataset['metadata'] = dict()
+        ctg_dataset['metadata']['v'] = self.v
+        ctg_dataset['metadata']['treatment_selection_bias'] = self.treatment_selection_bias
+        ctg_dataset['metadata']['dosage_selection_bias'] = self.dosage_selection_bias
+        ctg_dataset['metadata']['noise_std'] = self.noise_std
+        ctg_dataset['metadata']['scaling_parameter'] = self.scaling_parameteter
+
+        for patient in patient_features:
+            t, dosage, y = generate_patient(x=patient, v=self.v, num_treatments=num_treatments,
+                                            treatment_selection_bias=self.treatment_selection_bias,
+                                            dosage_selection_bias=self.dosage_selection_bias,
+                                            scaling_parameter=self.scaling_parameteter,
+                                            noise_std=self.noise_std)
+            ctg_dataset['x'].append(patient)
+            ctg_dataset['t'].append(t)
+            ctg_dataset['d'].append(dosage)
+            ctg_dataset['y'].append(y)
+
+        for key in ['x', 't', 'd', 'y']:
+            ctg_dataset[key] = np.array(ctg_dataset[key])
+
+        ctg_dataset['metadata']['y_min'] = np.min(ctg_dataset['y'])
+        ctg_dataset['metadata']['y_max'] = np.max(ctg_dataset['y'])
+
+        ctg_dataset['y_normalized'] = (ctg_dataset['y'] - np.min(ctg_dataset['y'])) / (
+                np.max(ctg_dataset['y']) - np.min(ctg_dataset['y']))
+
+        train_indices, validation_indices, test_indices = get_split_indices(num_patients=ctg_dataset['x'].shape[0],
+                                                                            patients=ctg_dataset['x'],
+                                                                            treatments=ctg_dataset['t'],
+                                                                            validation_fraction=self.validation_fraction,
+                                                                            test_fraction=self.test_fraction)
+
+        ctg_dataset['metadata']['train_index'] = train_indices
+        ctg_dataset['metadata']['val_index'] = validation_indices
+        ctg_dataset['metadata']['test_index'] = test_indices
+
+        return ctg_dataset
+

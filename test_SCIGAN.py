@@ -6,7 +6,7 @@ import shutil
 import tensorflow as tf
 import pickle
 
-from data_simulation import get_dataset_splits, TCGA_Data
+from data_simulation import get_dataset_splits, TCGA_Data, CTG_Data
 from SCIGAN import SCIGAN_Model
 from SCIGAN_deep import SCIGAN_deep_Model, SCIGAN_deep_2_Model, SCIGAN_deep_3_Model, SCIGAN_deep_4_Model
 from utils.evaluation_utils import compute_eval_metrics
@@ -42,6 +42,7 @@ def init_arg():
     parser.add_argument("--modify_i_loss", type=int, default=0)
     parser.add_argument("--modify_g_loss", type=int, default=0)
     parser.add_argument("--xavier", action='store_true')
+    parser.add_argument("--source", choices=['tcga','ctg'], default='tcga')
 
 
     return parser.parse_args()
@@ -60,9 +61,14 @@ if __name__ == "__main__":
     dataset_params['test_fraction'] = args.test_fraction
     dataset_params['filepath'] = args.filepath
 
-    data_class = TCGA_Data(dataset_params)
-    dataset = data_class.dataset
-    dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
+    if args.source == 'tcga':
+        data_class = TCGA_Data(dataset_params)
+        dataset = data_class.dataset
+        dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
+    elif args.source == 'ctg':
+        data_class = CTG_Data(dataset_params)
+        dataset = data_class.dataset
+        dataset_train, dataset_val, dataset_test = get_dataset_splits(dataset)
 
     if args.save_dataset:
 
